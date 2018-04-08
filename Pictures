@@ -1,0 +1,175 @@
+import cmath
+import math
+import matplotlib.pyplot as plt
+import numpy as np
+from pylab import savefig
+
+
+# -----------Constants--------------
+L = 1.5e-1     # Length of cavity (approximation)
+delL = 1e-7  # length change from piezo
+omega = 2e15 # Freq. of 935 nm
+RF = 5e8     # Freq. of RF signal
+c = 3e8      # Speed of light
+
+
+#----------------------Reflection Coefficient
+
+# Phase change for cavity
+def Phi(Omega, L):
+    return (omega+Omega)*2*L/c
+
+
+r = 0.999 # RC for mirror
+
+# Check the reflection coefficient
+def F(Omega, L):
+    return r*(cmath.exp(complex(0, Phi(Omega, L)))-1)/(1-r*r*cmath.exp(complex(0, Phi(Omega, L))))
+
+x = np.linspace(L-delL, L+delL, 10000)
+y = list(map(lambda x: np.absolute(F(RF, x))**2, x))
+z = list(map(lambda x: np.absolute(F(0, x))**2, x))
+
+plt.figure(figsize=(12, 8), dpi=80)
+plt.plot(x, y)
+plt.plot(x, z)
+plt.xlabel('Laser Frequency Detuning', fontsize = 20)
+plt.ylabel('Reflection Intensity', fontsize = 20)
+plt.xlim(L-delL, L+delL)
+savefig('Ref.png')
+
+plt.figure(figsize=(12, 8), dpi=80)
+plt.plot(x, y)
+plt.xlim(L+delL/8, L+delL/5)
+plt.xlabel('Laser Frequency Detuning', fontsize = 20)
+plt.ylabel('Reflection Intensity', fontsize = 20)
+savefig('Error_zoom.png')
+
+#----------------------Reflection Coefficient w/RF
+# (sum|E|^2 / |sum E|^2)
+
+beta = 0.3 # Bessel function J_1
+
+def F_EOM(Omega, L):
+    carrier = r*(cmath.exp(complex(0, Phi(0, L)))-1)/(1-r*r*cmath.exp(complex(0, Phi(0, L))))
+    sideband1 = beta*r*(cmath.exp(complex(0, Phi(Omega, L)))-1)/(1-r*r*cmath.exp(complex(0, Phi(Omega, L))))
+    sideband2 = beta*r*(cmath.exp(complex(0, Phi(-Omega, L)))-1)/(1-r*r*cmath.exp(complex(0, Phi(-Omega, L))))
+    #return carrier + sideband1 - sideband2
+    return carrier, sideband1, sideband2
+
+x = np.linspace(L-delL, L+delL, 1000)
+y = list(map(lambda x: np.absolute(F_EOM(RF, x)[0])**2+(F_EOM(RF, x)[1])**2+(F_EOM(RF, x)[2]**2), x))
+
+plt.figure(figsize=(12, 8), dpi=80)
+plt.plot(x, y)
+plt.xlim(L-delL, L+delL)
+plt.xlabel('Laser Frequency Detuning', fontsize = 20)
+plt.ylabel('Reflection Intensity', fontsize = 20)
+savefig('RFref.png')
+
+#----------------------PDH error signal
+def PDHsignalIm(Omega, L):
+    Sig = F(0, L)*np.conj(F(Omega, L)) - np.conj(F(0, L))*F(-Omega, L)
+    return Sig.imag
+
+x = np.linspace(L-delL, L+delL, 5000)
+y = list(map(lambda x: PDHsignalIm(RF, x), x))
+plt.figure(figsize=(12, 8), dpi=80)
+plt.plot(x, y)
+plt.xlim(L-delL, L+delL)
+plt.xlabel('Laser Frequency Detuning', fontsize = 20)
+plt.ylabel('Error Signal', fontsize = 20)
+savefig('Error0.png')
+
+plt.figure(figsize=(12, 8), dpi=80)
+plt.plot(x, y)
+plt.xlim(L+0.5*delL, L+0.57*delL)
+plt.xlabel('Laser Frequency Detuning', fontsize = 20)
+plt.ylabel('Error Signal', fontsize = 20)
+savefig('Error0_zoom.png')
+
+def PDHsignalRe(Omega, L):
+    Sig = F(0, L)*np.conj(F(Omega, L)) - np.conj(F(0, L))*F(-Omega, L)
+    return Sig.real
+
+#x = np.linspace(L-delL, L+delL, 1000)
+#y = list(map(lambda x: PDHsignalRe(RF, x), x))
+#plt.plot(x, y)
+#plt.xlim(L-delL, L+delL)
+#plt.xlabel('Laser Frequency Detuning')
+#plt.ylabel('Error Signal')
+#plt.show()
+
+def PDHsignalPhase(psi, Omega, L):
+    return math.cos(psi)*PDHsignalIm(Omega, L) + math.sin(psi)*PDHsignalRe(Omega, L)
+
+x = np.linspace(L-delL, L+delL, 5000)
+y1 = list(map(lambda x: PDHsignalPhase(0, RF, x), x))
+y2 = list(map(lambda x: PDHsignalPhase(math.pi/6, RF, x), x))
+y3 = list(map(lambda x: PDHsignalPhase(math.pi/3, RF, x), x))
+y4 = list(map(lambda x: PDHsignalPhase(math.pi/2, RF, x), x))
+y5 = list(map(lambda x: PDHsignalPhase(2*math.pi/3, RF, x), x))
+y6 = list(map(lambda x: PDHsignalPhase(5*math.pi/6, RF, x), x))
+
+plt.figure(figsize=(12, 8), dpi=80)
+plt.plot(x, y1)
+#plt.plot(x, y2)
+plt.plot(x, y3)
+#plt.plot(x, y4)
+plt.plot(x, y5)
+#plt.plot(x, y6)
+#plt.xlim(1.5e-1-0.4e-6, 1.5e-1+0.65e-6)
+plt.xlim(L+0.5*delL, L+0.57*delL)
+plt.xlabel('Laser Frequency Detuning', fontsize = 20)
+plt.ylabel('Error Signal', fontsize = 20)
+savefig('Errorphase_zoom.png')
+
+plt.figure(figsize=(12, 8), dpi=80)
+plt.plot(x, y1, label = 'Phase Difference = 0')
+#plt.plot(x, y2)
+plt.plot(x, y3, label = 'Phase Difference = $\pi/3$')
+#plt.plot(x, y4)
+plt.plot(x, y5, label = 'Phase Difference = 2$\pi/3$')
+#plt.plot(x, y6)
+#plt.xlim(1.5e-1-0.4e-6, 1.5e-1+0.65e-6)
+plt.xlim(L-delL, L+delL)
+plt.legend(loc = 'upper left')
+plt.xlabel('Laser Frequency Detuning', fontsize = 20)
+plt.ylabel('Error Signal', fontsize = 20)
+savefig('Errorphase.png')
+
+#-----------------------Microwave modulation
+uw = 2e10   # uw frequency
+beta1 = 0
+beta2 = 0
+
+RF = 5e9
+
+from scipy.special import jn
+
+def EincComb(t, beta1, beta2):
+    ModPhase = omega*t + beta1*math.sin(uw*t) + beta2*math.sin(RF*t) 
+    #ModPhase = omega*t + beta1*math.sin(uw*t)*math.sin(RF*t)
+    return cmath.exp(ModPhase*1j)
+
+import scipy.fftpack
+
+# Number of samplepoints
+N = 600
+# sample spacing
+T = 1.0 / 800.0
+x = np.linspace(0.0, N*T, N)
+y1 = list(map(lambda x: EincComb(x, 0, 0.5).real, x))
+y2 = list(map(lambda x: EincComb(x, 2.4, 0.7).real, x))
+yf1 = scipy.fftpack.fft(y1)
+yf2 = scipy.fftpack.fft(y2)
+xf = np.linspace(0.0, 1.0/(2.0*T), N/2)
+
+plt.figure(figsize=(12, 8), dpi=80)
+plt.plot(xf, 2.0/N * np.abs(yf1[:N//2])**2, label = 'MOD off')
+plt.plot(xf, 2.0/N * np.abs(yf2[:N//2])**2, label = 'MOD on')
+plt.legend(loc = 'upper right')
+plt.xlim(0, 400)
+plt.xlabel('Laser Frequency Detuning', fontsize = 20)
+plt.ylabel('Frequency Components', fontsize = 20)
+savefig('uwmod.png')
